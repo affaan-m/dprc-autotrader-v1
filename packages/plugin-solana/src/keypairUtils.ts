@@ -52,8 +52,12 @@ export async function getWalletKey(
 
         try {
             // First try base58
+            console.log("Secret key : ", privateKeyString)
             const secretKey = bs58.decode(privateKeyString);
-            return { keypair: Keypair.fromSecretKey(secretKey) };
+            console.log("Secret key decoded: ", secretKey)
+            console.log("Decoded Key Length (Base58):", secretKey.length);
+
+            return { keypair: Keypair.fromSecretKey(secretKey, { skipValidation: true }) };
         } catch (e) {
             console.log("Error decoding base58 private key:", e);
             try {

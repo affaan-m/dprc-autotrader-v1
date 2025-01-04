@@ -10,7 +10,7 @@ import {
     State,
     type Action,
 } from "@elizaos/core";
-import { Connection, PublicKey, VersionedTransaction } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, VersionedTransaction } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 import { getWalletKey } from "../keypairUtils.ts";
 import { walletProvider, WalletProvider } from "../providers/wallet.ts";
@@ -45,10 +45,12 @@ async function swapToken(
             outputMint: outputTokenCA,
             amount: adjustedAmount,
         });
-
+                        //Hard coding values for testing
         const quoteResponse = await fetch(
-            `https://quote-api.jup.ag/v6/quote?inputMint=${inputTokenCA}&outputMint=${outputTokenCA}&amount=${adjustedAmount}&slippageBps=50`
+            `https://quote-api.jup.ag/v6/quote?inputMint=${inputTokenCA}&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=${adjustedAmount}&slippageBps=50`
         );
+
+        console.log("Jupiter URL to call the swaping", quoteResponse)
         const quoteData = await quoteResponse.json();
 
         if (!quoteData || quoteData.error) {
@@ -204,17 +206,21 @@ export const executeSwap: Action = {
             modelClass: ModelClass.LARGE,
         });
 
+
         console.log("Response:", response);
         // const type = response.inputTokenSymbol?.toUpperCase() === "SOL" ? "buy" : "sell";
 
         // Add SOL handling logic
         if (response.inputTokenSymbol?.toUpperCase() === "SOL") {
             response.inputTokenCA = settings.SOL_ADDRESS;
+            response.inputTokenCA="So11111111111111111111111111111111111111112";
+
         }
         if (response.outputTokenSymbol?.toUpperCase() === "SOL") {
             response.outputTokenCA = settings.SOL_ADDRESS;
-        }
+            response.outputTokenCA="So11111111111111111111111111111111111111112";
 
+        }
         // if both contract addresses are set, lets execute the swap
         // TODO: try to resolve CA from symbol based on existing symbol in wallet
         if (!response.inputTokenCA && response.inputTokenSymbol) {
@@ -225,6 +231,8 @@ export const executeSwap: Action = {
                 runtime,
                 response.inputTokenSymbol
             );
+            //Hard coding values for testing
+            response.inputTokenCA="So11111111111111111111111111111111111111112";
             if (response.inputTokenCA) {
                 console.log(`Resolved inputTokenCA: ${response.inputTokenCA}`);
             } else {
@@ -245,6 +253,8 @@ export const executeSwap: Action = {
                 runtime,
                 response.outputTokenSymbol
             );
+            //Hard coding values for testing
+            response.outputTokenCA="So11111111111111111111111111111111111111112";
             if (response.outputTokenCA) {
                 console.log(
                     `Resolved outputTokenCA: ${response.outputTokenCA}`
@@ -287,7 +297,7 @@ export const executeSwap: Action = {
             );
 
             // const provider = new WalletProvider(connection, walletPublicKey);
-
+            response.amount=0.0008;
             console.log("Wallet Public Key:", walletPublicKey);
             console.log("inputTokenSymbol:", response.inputTokenCA);
             console.log("outputTokenSymbol:", response.outputTokenCA);
@@ -314,7 +324,11 @@ export const executeSwap: Action = {
             console.log("Creating keypair...");
             const { keypair } = await getWalletKey(runtime, true);
             // Verify the public key matches what we expect
+            console.log("Public Key from the Key pair: ", keypair.publicKey.toBase58())
+            console.log("Public Key from the Wallet: ", walletPublicKey.toBase58())
+
             if (keypair.publicKey.toBase58() !== walletPublicKey.toBase58()) {
+
                 throw new Error(
                     "Generated public key doesn't match expected public key"
                 );
@@ -326,6 +340,7 @@ export const executeSwap: Action = {
             console.log("Sending transaction...");
 
             const latestBlockhash = await connection.getLatestBlockhash();
+            console.log("Latest Block hash has beed fetched");
 
             const txid = await connection.sendTransaction(transaction, {
                 skipPreflight: false,

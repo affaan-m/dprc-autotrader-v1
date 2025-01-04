@@ -7,8 +7,8 @@ import { getWalletKey } from "../keypairUtils";
 // Provider configuration
 const PROVIDER_CONFIG = {
     BIRDEYE_API: "https://public-api.birdeye.so",
-    MAX_RETRIES: 3,
-    RETRY_DELAY: 2000,
+    MAX_RETRIES: 1,
+    RETRY_DELAY: 5000,
     DEFAULT_RPC: "https://api.mainnet-beta.solana.com",
     GRAPHQL_ENDPOINT: "https://graph.codex.io/graphql",
     TOKEN_ADDRESSES: {
@@ -156,6 +156,8 @@ export class WalletProvider {
                 ),
             };
             this.cache.set(cacheKey, portfolio);
+            console.log("Portfolio value: ", portfolio)
+
             return portfolio;
         } catch (error) {
             console.error("Error fetching portfolio:", error);
@@ -252,7 +254,7 @@ export class WalletProvider {
 
             // Cache the portfolio for future requests
             await this.cache.set(cacheKey, portfolio, 60 * 1000); // Cache for 1 minute
-
+            console.log("Portfolio value Codex: ", portfolio)
             return portfolio;
         } catch (error) {
             console.error("Error fetching portfolio:", error);
@@ -305,6 +307,7 @@ export class WalletProvider {
             }
 
             this.cache.set(cacheKey, prices);
+            console.log("Portfolio value Prices: ", prices)
             return prices;
         } catch (error) {
             console.error("Error fetching prices:", error);
@@ -345,7 +348,7 @@ export class WalletProvider {
         output += `SOL: $${new BigNumber(prices.solana.usd).toFixed(2)}\n`;
         output += `BTC: $${new BigNumber(prices.bitcoin.usd).toFixed(2)}\n`;
         output += `ETH: $${new BigNumber(prices.ethereum.usd).toFixed(2)}\n`;
-
+        console.log("Portfolio value Output Formatted: ", output)
         return output;
     }
 
@@ -355,6 +358,7 @@ export class WalletProvider {
                 this.fetchPortfolioValue(runtime),
                 this.fetchPrices(runtime),
             ]);
+            console.log("Portfolio value and prices Formatted: ", portfolio, prices)
 
             return this.formatPortfolio(runtime, portfolio, prices);
         } catch (error) {
