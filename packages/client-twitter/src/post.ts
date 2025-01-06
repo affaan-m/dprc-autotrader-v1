@@ -102,6 +102,36 @@ export class TwitterPostClient {
     private stopProcessingActions: boolean = false;
     private isDryRun: boolean;
 
+
+
+        /**
+     * Posts a cryptocurrency swap tweet with the provided details.
+     * @param inputCurrency - The symbol of the cryptocurrency being swapped from (e.g., BTC).
+     * @param outputCurrency - The symbol of the cryptocurrency being swapped to (e.g., ETH).
+     * @param amount - The amount being swapped from the input cryptocurrency.
+     */
+        async postCryptoSwapTweet(inputCurrency: string, outputCurrency: string, amount: number) {
+            try {
+                const tweetContent = `I have swapped ${amount} ${inputCurrency} for ${outputCurrency}.`;
+                elizaLogger.log(`Generated crypto swap tweet: ${tweetContent}`);
+
+                if (this.isDryRun) {
+                    elizaLogger.info(`Dry run: would have posted tweet: "${tweetContent}"`);
+                    return;
+                }
+
+                const result = await this.sendStandardTweet(this.client, tweetContent);
+
+                if (result) {
+                    elizaLogger.log(`Crypto swap tweet posted successfully: ${tweetContent}`);
+                } else {
+                    elizaLogger.error("Failed to post crypto swap tweet.");
+                }
+            } catch (error) {
+                elizaLogger.error("Error in postCryptoSwapTweet:", error.stack || error);
+            }
+        }
+
     constructor(client: ClientBase, runtime: IAgentRuntime) {
         this.client = client;
         this.runtime = runtime;
@@ -329,21 +359,20 @@ export class TwitterPostClient {
         }
     }
 
-    async sendStandardTweet(
-        client: ClientBase,
-        content: string,
-        tweetId?: string
-    ) {
+    async sendStandardTweet(client: ClientBase, content: string, tweetId?: string) {
         try {
             const standardTweetResult = await client.requestQueue.add(
-                async () =>
-                    await client.twitterClient.sendTweet(content, tweetId)
+                async () => await client.twitterClient.sendTweet(content, tweetId)
             );
             const body = await standardTweetResult.json();
+
+            elizaLogger.log("Standard Tweet API Response:", JSON.stringify(body, null, 2));
+
             if (!body?.data?.create_tweet?.tweet_results?.result) {
                 console.error("Error sending tweet; Bad response:", body);
-                return;
+                return null;
             }
+
             return body.data.create_tweet.tweet_results.result;
         } catch (error) {
             elizaLogger.error("Error sending standard Tweet:", error);

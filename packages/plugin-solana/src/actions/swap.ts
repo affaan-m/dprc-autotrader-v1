@@ -15,6 +15,53 @@ import BigNumber from "bignumber.js";
 import { getWalletKey } from "../keypairUtils.ts";
 import { walletProvider, WalletProvider } from "../providers/wallet.ts";
 import { getTokenDecimals } from "./swapUtils.ts";
+import { TwitterApi } from 'twitter-api-v2';
+import OpenAI from 'openai'; // Correct import for OpenAI
+
+import fetch from "node-fetch";
+
+import dotenv from 'dotenv';
+
+// Load environment variables from .env file
+dotenv.config();
+
+
+// Hardcoding credentials for testing
+const API_KEY = process.env.TWITTER_API_KEY || "qDDfinpYrMMbwly2P6Kq97TLI";
+const API_KEY_SECRET = process.env.TWITTER_API_KEY_SECRET || "qXZrESA4tjCK0bf3Ilf4w4ksojPveGtxVZQvZS1CoiVgtDYPby";
+const ACCESS_TOKEN = process.env.TWITTER_ACCESS_TOKEN || "1870053544553791488-WCnRgsZx8ArKSJAnBOZEyjEg7WDFZ7";
+const ACCESS_TOKEN_SECRET = process.env.TWITTER_ACCESS_TOKEN_SECRET || "pyInshJDb2ykoE4ylJifXDGiaTFbDLGgccT6Xpu9ChvOc";
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+// Initialize Twitter client
+const client = new TwitterApi({
+  appKey: API_KEY,
+  appSecret: API_KEY_SECRET,
+  accessToken: ACCESS_TOKEN,
+  accessSecret: ACCESS_TOKEN_SECRET,
+});
+
+
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+    apiKey: OPENAI_API_KEY,
+  });
+
+async function postTweet(tweetText: string) {
+  try {
+    // Send the tweet
+    const response = await client.v2.tweet(tweetText);
+    console.log(`Tweet posted successfully:`, response);
+  } catch (error) {
+    console.error(`An error occurred while posting the tweet:`, error);
+  }
+}
+
+
+
+
 
 async function swapToken(
     connection: Connection,
@@ -210,6 +257,9 @@ export const executeSwap: Action = {
         console.log("Response:", response);
         // const type = response.inputTokenSymbol?.toUpperCase() === "SOL" ? "buy" : "sell";
 
+        response.inputTokenSymbol="SOL";
+        response.outputTokenSymbol="USDC";
+
         // Add SOL handling logic
         if (response.inputTokenSymbol?.toUpperCase() === "SOL") {
             response.inputTokenCA = settings.SOL_ADDRESS;
@@ -324,8 +374,8 @@ export const executeSwap: Action = {
             console.log("Creating keypair...");
             const { keypair } = await getWalletKey(runtime, true);
             // Verify the public key matches what we expect
-            console.log("Public Key from the Key pair: ", keypair.publicKey.toBase58())
-            console.log("Public Key from the Wallet: ", walletPublicKey.toBase58())
+            //console.log("Public Key from the Key pair: ", keypair.publicKey.toBase58())
+            //console.log("Public Key from the Wallet: ", walletPublicKey.toBase58())
 
             if (keypair.publicKey.toBase58() !== walletPublicKey.toBase58()) {
 
@@ -349,6 +399,33 @@ export const executeSwap: Action = {
             });
 
             console.log("Transaction sent:", txid);
+
+            console.log("Sending the tweet on twitter:");
+            const openai_response = await openai.chat.completions.create({
+               model: 'gpt-4',
+               messages: [
+                 {
+                   role: 'system',
+                   content: 'You are an assistant that writes concise and engaging tweets about cryptocurrency trades.',
+              },
+              {
+                role: 'user',
+                    content: `Generate a tweet about swapping ${response.amount} ${response.inputTokenSymbol} to ${response.outputTokenSymbol}.
+                      The tweet should explain the action in a conversational and informative tone with a rationale for why this swap was made.
+                     Keep the tweet under 280 characters. Avoid hashtags, emojis, or promotional language.`,
+                 },
+               ],
+             max_tokens: 100,
+             });
+
+            const tweetContent = openai_response.choices[0]?.message?.content.trim();
+
+
+            console.log("Content of the twitter post is : ", tweetContent);
+
+            postTweet(tweetContent);
+
+            console.log("Posted the tweet on twitter:");
 
             // Confirm transaction using the blockhash
             const confirmation = await connection.confirmTransaction(

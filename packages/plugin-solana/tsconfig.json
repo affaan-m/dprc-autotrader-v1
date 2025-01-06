@@ -2,8 +2,20 @@
     "extends": "../core/tsconfig.json",
     "compilerOptions": {
         "outDir": "dist",
-        "rootDir": "src"
+        "rootDir": "src",
+        "composite": true, // Enable project references
+        "baseUrl": ".", // Optional, keeps relative paths clean
+        "paths": {
+            "@client-twitter/*": [
+                "../client-twitter/src/*"
+            ] // Path alias for client-twitter
+        }
     },
+    "references": [
+        {
+            "path": "../client-twitter" // Reference the client-twitter package
+        }
+    ],
     "include": [
         "src/**/*.ts"
     ]

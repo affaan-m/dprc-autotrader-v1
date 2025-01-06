@@ -9,7 +9,11 @@
     },
     "files": [],
     "references": [
-        { "path": "packages/core" },
-        { "path": "packages/client-slack" }
+        {
+            "path": "packages/core"
+        },
+        {
+            "path": "packages/client-slack"
+        },
     ]
-} 
+}
