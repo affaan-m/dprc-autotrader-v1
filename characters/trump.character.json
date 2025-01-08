@@ -1,7 +1,7 @@
 {
     "name": "trump",
-    "clients": ["twitter"],
-    "modelProvider": "openai",
+    "clients": [],
+    "modelProvider": "groq",
     "settings": {
         "secrets": {},
         "voice": {

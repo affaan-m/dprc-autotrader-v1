@@ -115,6 +115,8 @@ export class TokenProvider {
                 }
 
                 const data = await response.json();
+
+                console.log("Data is: ", data);
                 return data;
             } catch (error) {
                 console.error(`Attempt ${i + 1} failed:`, error);
@@ -343,9 +345,9 @@ export class TokenProvider {
         const cachedData = this.getCachedData<TokenSecurityData>(cacheKey);
         if (cachedData) {
             console.log(
-                `Returning cached token security data for ${this.tokenAddress}.`
+                `Not Returning cached token security data for ${this.tokenAddress}.`
             );
-            return cachedData;
+           // return cachedData;
         }
         const url = `${PROVIDER_CONFIG.BIRDEYE_API}${PROVIDER_CONFIG.TOKEN_SECURITY_ENDPOINT}${this.tokenAddress}`;
         const data = await this.fetchWithRetry(url);
@@ -373,9 +375,9 @@ export class TokenProvider {
         const cachedData = this.getCachedData<TokenTradeData>(cacheKey);
         if (cachedData) {
             console.log(
-                `Returning cached token trade data for ${this.tokenAddress}.`
+                `Not Returning cached token trade data for ${this.tokenAddress}.`
             );
-            return cachedData;
+            //return cachedData;
         }
 
         const url = `${PROVIDER_CONFIG.BIRDEYE_API}${PROVIDER_CONFIG.TOKEN_TRADE_DATA_ENDPOINT}${this.tokenAddress}`;
@@ -394,6 +396,8 @@ export class TokenProvider {
         if (!data?.success || !data?.data) {
             throw new Error("No token trade data available");
         }
+
+        console.log("Data is : ", data);
 
         const tradeData: TokenTradeData = {
             address: data.data.address,
@@ -600,6 +604,8 @@ export class TokenProvider {
                 data.data.volume_sell_24h_change_percent,
         };
         this.setCachedData(cacheKey, tradeData);
+        console.log("Trade Data:", tradeData);
+
         return tradeData;
     }
 
@@ -607,8 +613,8 @@ export class TokenProvider {
         const cacheKey = `dexScreenerData_${this.tokenAddress}`;
         const cachedData = this.getCachedData<DexScreenerData>(cacheKey);
         if (cachedData) {
-            console.log("Returning cached DexScreener data.");
-            return cachedData;
+            console.log("Not Returning cached DexScreener data.");
+            //return cachedData;
         }
 
         const url = `https://api.dexscreener.com/latest/dex/search?q=${this.tokenAddress}`;
@@ -702,6 +708,13 @@ export class TokenProvider {
         tradeData: TokenTradeData
     ): Promise<string> {
         // Define the time intervals to consider (e.g., 30m, 1h, 2h)
+
+
+        if (!tradeData) {
+            console.error("Trade data is null or undefined.");
+            return "stable"; // Return a default value
+        }
+
         const intervals = [
             {
                 period: "30m",
@@ -748,8 +761,8 @@ export class TokenProvider {
         const cacheKey = `holderList_${this.tokenAddress}`;
         const cachedData = this.getCachedData<HolderData[]>(cacheKey);
         if (cachedData) {
-            console.log("Returning cached holder list.");
-            return cachedData;
+            console.log("Not Returning cached holder list.");
+            //return cachedData;
         }
 
         const allHoldersMap = new Map<string, number>();
@@ -846,6 +859,11 @@ export class TokenProvider {
         tradeData: TokenTradeData
     ): Promise<Array<{ holderAddress: string; balanceUsd: string }>> {
         const holdersData = await this.fetchHolderList();
+
+        if (!tradeData || !tradeData.price) {
+            console.warn("Invalid or missing price in trade data.");
+            return []; // Return an empty array to avoid further errors
+        }
 
         const tokenPriceUsd = toBN(tradeData.price);
 
@@ -1093,7 +1111,7 @@ export class TokenProvider {
     }
 }
 
-const tokenAddress = PROVIDER_CONFIG.TOKEN_ADDRESSES.Example;
+const tokenAddress = PROVIDER_CONFIG.TOKEN_ADDRESSES.SOL;
 
 const connection = new Connection(PROVIDER_CONFIG.DEFAULT_RPC);
 const tokenProvider: Provider = {
@@ -1113,7 +1131,10 @@ const tokenProvider: Provider = {
                 runtime.cacheManager
             );
 
-            return provider.getFormattedTokenReport();
+            console.log("Displaying Complete Formatted Token Report...");
+            provider.getFormattedTokenReport();
+            console.log("Formatted Token Report Displayed: Returing True");
+            return "Success: Formatted Token Report Displayed";
         } catch (error) {
             console.error("Error fetching token data:", error);
             return "Unable to fetch token information. Please try again later.";

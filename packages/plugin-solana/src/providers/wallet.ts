@@ -156,7 +156,7 @@ export class WalletProvider {
                 ),
             };
             this.cache.set(cacheKey, portfolio);
-            console.log("Portfolio value: ", portfolio)
+           // console.log("Portfolio value: ", portfolio)
 
             return portfolio;
         } catch (error) {
@@ -254,7 +254,7 @@ export class WalletProvider {
 
             // Cache the portfolio for future requests
             await this.cache.set(cacheKey, portfolio, 60 * 1000); // Cache for 1 minute
-            console.log("Portfolio value Codex: ", portfolio)
+            //console.log("Portfolio value Codex: ", portfolio)
             return portfolio;
         } catch (error) {
             console.error("Error fetching portfolio:", error);
@@ -307,7 +307,7 @@ export class WalletProvider {
             }
 
             this.cache.set(cacheKey, prices);
-            console.log("Portfolio value Prices: ", prices)
+            //console.log("Portfolio value Prices: ", prices)
             return prices;
         } catch (error) {
             console.error("Error fetching prices:", error);
@@ -348,7 +348,7 @@ export class WalletProvider {
         output += `SOL: $${new BigNumber(prices.solana.usd).toFixed(2)}\n`;
         output += `BTC: $${new BigNumber(prices.bitcoin.usd).toFixed(2)}\n`;
         output += `ETH: $${new BigNumber(prices.ethereum.usd).toFixed(2)}\n`;
-        console.log("Portfolio value Output Formatted: ", output)
+        //console.log("Portfolio value Output Formatted: ", output)
         return output;
     }
 
@@ -358,7 +358,7 @@ export class WalletProvider {
                 this.fetchPortfolioValue(runtime),
                 this.fetchPrices(runtime),
             ]);
-            console.log("Portfolio value and prices Formatted: ", portfolio, prices)
+            //console.log("Portfolio value and prices Formatted: ", portfolio, prices)
 
             return this.formatPortfolio(runtime, portfolio, prices);
         } catch (error) {

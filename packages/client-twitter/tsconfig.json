@@ -2,14 +2,9 @@
     "extends": "../core/tsconfig.json",
     "compilerOptions": {
         "outDir": "dist",
-        "rootDir": "src",
-        "composite": true
+        "rootDir": "src"
     },
     "include": [
-        "src/**/*.ts", // Ensure all TypeScript files in `src` are included
-    ],
-    "exclude": [
-        "node_modules", // Exclude dependencies
-        "dist" // Exclude output directory
+        "src/**/*.ts"
     ]
 }
