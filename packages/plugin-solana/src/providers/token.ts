@@ -977,7 +977,6 @@ export class TokenProvider {
             throw error;
         }
     }
-
     async shouldTradeToken(): Promise<boolean> {
         try {
             const tokenData = await this.getProcessedTokenData();
@@ -988,8 +987,7 @@ export class TokenProvider {
             const marketCapUsd = toBN(marketCap);
             const totalSupply = toBN(ownerBalance).plus(creatorBalance);
             const _ownerPercentage = toBN(ownerBalance).dividedBy(totalSupply);
-            const _creatorPercentage =
-                toBN(creatorBalance).dividedBy(totalSupply);
+            const _creatorPercentage = toBN(creatorBalance).dividedBy(totalSupply);
             const top10HolderPercent = toBN(tradeData.volume_24h_usd).dividedBy(
                 totalSupply
             );
@@ -1001,32 +999,43 @@ export class TokenProvider {
             );
             const uniqueWallet24h = tradeData.unique_wallet_24h;
             const volume24hUsd = toBN(tradeData.volume_24h_usd);
-            const volume24hUsdThreshold = 1000;
+            const numberOfHolders = tradeData.holder; // Number of token holders
+
+            // Mandatory Thresholds (must meet all)
+            const mandatoryConditionsMet =
+                numberOfHolders > 200 && // Must have > 200 holders
+                liquidityUsd.gt(20_000) && // Liquidity > $20,000
+                volume24hUsd.gt(100_000); // Volume > $100,000
+
+            if (!mandatoryConditionsMet) {
+                return false; // Return false if any mandatory condition is not met
+            }
+
+            // Optional Thresholds (can meet any)
             const priceChange24hPercentThreshold = 10;
             const priceChange12hPercentThreshold = 5;
             const top10HolderPercentThreshold = 0.05;
             const uniqueWallet24hThreshold = 100;
+            const marketCapThreshold = 100_000;
+
             const isTop10Holder = top10HolderPercent.gte(
                 top10HolderPercentThreshold
             );
-            const isVolume24h = volume24hUsd.gte(volume24hUsdThreshold);
             const isPriceChange24h = priceChange24hPercent.gte(
                 priceChange24hPercentThreshold
             );
             const isPriceChange12h = priceChange12hPercent.gte(
                 priceChange12hPercentThreshold
             );
-            const isUniqueWallet24h =
-                uniqueWallet24h >= uniqueWallet24hThreshold;
-            const isLiquidityTooLow = liquidityUsd.lt(1000);
-            const isMarketCapTooLow = marketCapUsd.lt(100000);
+            const isUniqueWallet24h = uniqueWallet24h >= uniqueWallet24hThreshold;
+            const isMarketCapTooLow = marketCapUsd.lt(marketCapThreshold);
+
+            // Return true if mandatory conditions are met and any optional condition is met
             return (
                 isTop10Holder ||
-                isVolume24h ||
                 isPriceChange24h ||
                 isPriceChange12h ||
                 isUniqueWallet24h ||
-                isLiquidityTooLow ||
                 isMarketCapTooLow
             );
         } catch (error) {
@@ -1034,6 +1043,7 @@ export class TokenProvider {
             throw error;
         }
     }
+
 
     formatTokenData(data: ProcessedTokenData): string {
         let output = `**Token Security and Trade Report**\n`;
