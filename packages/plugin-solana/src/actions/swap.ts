@@ -94,7 +94,7 @@ async function swapToken(
         });
                         //Hard coding values for testing
         const quoteResponse = await fetch(
-            `https://quote-api.jup.ag/v6/quote?inputMint=${inputTokenCA}&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=${adjustedAmount}&slippageBps=50`
+            `https://quote-api.jup.ag/v6/quote?inputMint=${inputTokenCA}&outputMint=${outputTokenCA}&amount=${adjustedAmount}&slippageBps=50`
         );
 
         console.log("Jupiter URL to call the swaping", quoteResponse)

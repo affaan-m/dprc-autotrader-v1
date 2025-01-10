@@ -16,44 +16,38 @@ async function getTradeRecommendation(openAiApiKey, cryptoTokensJson, walletBala
     }
 
     const tradableTokens = Object.keys(cryptoTokensJson).filter(token => cryptoTokensJson[token]);
-
     const walletItems = walletBalance.data?.items || [];
     const tradableWalletTokens = walletItems.filter(item =>
         tradableTokens.includes(item.symbol.toLowerCase())
     );
 
     const prompt = `
-You are a seasoned crypto trading expert. Based on the following available tokens for trading, my current wallet balance, and tradable wallet tokens, please recommend:
+You are a seasoned crypto trading expert. Focus only on providing token trading recommendations in valid JSON format.
+Consider only 5% amount of balanace as as tradable.  Based on the following available tokens for trading, my current wallet balance, and tradable wallet tokens, please recommend:
 1. Which tokens I should trade.
 2. How much amount of each token I should purchase to maximize profit.
-3. Provide the contract address (CA) for both input and output tokens in your recommendations.
+3. Provide the accurate contract address (CA) for both input and output tokens in your recommendations.
 
-**Available Tokens for Trading:** ${JSON.stringify(cryptoTokensJson, null, 2)}
-**Wallet Balance:** ${JSON.stringify(walletBalance, null, 2)}
-**Tradable Wallet Tokens:** ${JSON.stringify(tradableWalletTokens, null, 2)}
+**Input Details:**
+Available Tokens: ${JSON.stringify(cryptoTokensJson, null, 2)}
+Wallet Balance: ${JSON.stringify(walletBalance, null, 2)}
+Tradable Wallet Tokens: ${JSON.stringify(tradableWalletTokens, null, 2)}
 
-**Trading Budget:**
-Assume I will use only (5% of my wallet balance) for trading recommendations.
-
-Consider the following factors in your recommendation:
-1. Token value in USD.
-2. My trading budget.
-3. Market trends and liquidity of each token.
-4. The value of the input token in relation to the target token.
-5. Any other relevant metrics for maximizing profitability.
-
-If no tokens are worth trading, state "No trade recommended."
-
-**Provide your recommendation in the following JSON format:**
+Respond ONLY with valid JSON data in the format below:
 {
     "recommendations": [
         {
             "inputTokenCA": "INPUT_TOKEN_CONTRACT_ADDRESS",
             "outputTokenCA": "OUTPUT_TOKEN_CONTRACT_ADDRESS",
             "amountToBuy": "AMOUNT"
-        },
-        ...
+        }
     ]
+}
+
+Make sure that the values of inputTokenCA and outputTokenCA are correct.
+Do not include explanations or comments. If no tokens are worth trading, return:
+{
+    "recommendations": []
 }
 `;
 
@@ -69,8 +63,8 @@ If no tokens are worth trading, state "No trade recommended."
                 { role: "system", content: "You are ChatGPT, a crypto trading expert." },
                 { role: "user", content: prompt },
             ],
-            temperature: 0.3,
-            max_tokens: 300, // Increase max tokens for more detailed output
+            temperature: 0, // Fully deterministic
+            max_tokens: 300,
         }),
     });
 
@@ -79,32 +73,31 @@ If no tokens are worth trading, state "No trade recommended."
     }
 
     const data = await response.json();
-    const llmResponse = data.choices[0]?.message?.content?.trim();
+    console.log("Raw OpenAI Response:", data);
 
-    // Check if llmResponse contains valid JSON
+    const llmResponse = data.choices[0]?.message?.content?.trim();
     if (!llmResponse) {
         throw new Error("Invalid or empty response from OpenAI API.");
     }
-
-    const match = llmResponse.match(/\{[\s\S]*\}/);
-    if (!match) {
-        throw new Error("Could not extract JSON data from OpenAI response.");
-    }
+    console.log("LLM Response:", llmResponse);
 
     try {
-        const recommendations = JSON.parse(match[0]);
+        const recommendations = JSON.parse(llmResponse);
+        if (!recommendations.recommendations) {
+            throw new Error("Recommendations key missing in response.");
+        }
         return recommendations;
     } catch (err) {
+        console.error("OpenAI response parsing failed:", llmResponse);
         throw new Error(`Error parsing recommendations JSON: ${err.message}`);
     }
 }
 
-
-const fetchBirdEyeDataAction: Action = {
-    name: "FETCH_BIRDEYE_DATA",
-    similes: ["GET_BIRDEYE_DATA", "FETCH_API_DATA"],
+const purchaseRecommendedTokensAction: Action = {
+    name: "PURCHASE_RECOMMENDED_TOKENS",
+    similes: ["GET_RECOMMENDED_TOKENS", "BUY_RECOMMENDED_TOKENS"],
     description:
-        "Fetches data from the BirdEye API, logs it to the console, and checks if the token should be traded for multiple tokens.",
+        "Fetches data from the BirdEye API, logs it to the console, and checks if the token should be traded for multiple tokens and purchase them.",
 
     validate: async (runtime: IAgentRuntime, message: Memory) => {
           // Check if the necessary parameters are provided in the message
@@ -183,7 +176,7 @@ const fetchBirdEyeDataAction: Action = {
             console.log("Trade Recommendations:", recommendationsResponse);
 
             // Step 3: Pass Recommendations to buyRecommendedTokens
-           // await buyRecommendedTokens(recommendationsResponse, runtime);
+            await buyRecommendedTokens(recommendationsResponse, runtime);
 
             console.log("Trade execution completed.");
 
@@ -199,13 +192,13 @@ const fetchBirdEyeDataAction: Action = {
         [
             {
                 user: "{{user1}}",
-                content: { text: "Fetch BirdEye data and get trade recommendations" },
+                content: { text: "Can you purchase some recommended tokens for me?" },
             },
             {
                 user: "{{user2}}",
                 content: {
-                    text: "BirdEye data has been fetched, and trade recommendations are available.",
-                    action: "FETCH_BIRDEYE_DATA",
+                    text: "BirdEye data has been fetched, and trade recommendations are available. Now just purchased the tokens",
+                    action: "PURCHASE_RECOMMENDED_TOKENS",
                 },
             },
         ],
@@ -213,12 +206,14 @@ const fetchBirdEyeDataAction: Action = {
 };
 
 
-/*
+
 /**
  * Fetch token decimals from the blockchain.
  * @param connection Solana connection object.
  * @param tokenMintAddress The mint address of the token.
  * @returns Decimals for the token.
+
+ */
 
 export async function getTokenDecimals(connection: Connection, tokenMintAddress: string): Promise<number> {
     try {
@@ -251,13 +246,22 @@ async function buyRecommendedTokens(recommendations, runtime) {
         const { publicKey: walletPublicKey } = await getWalletKey(runtime, false);
 
         for (const recommendation of recommendations) {
-            const { inputTokenCA, outputTokenCA, amountToBuy } = recommendation;
+            let { inputTokenCA, outputTokenCA, amountToBuy } = recommendation;
 
             if (!inputTokenCA || !outputTokenCA || !amountToBuy) {
                 console.error("Invalid recommendation data:", recommendation);
                 continue;
             }
+            // Check and replace invalid token contract addresses
+            if (inputTokenCA === "So11111111111111111111111111111111111111111") {
+                console.warn(`Invalid inputTokenCA detected: ${inputTokenCA}. Replacing with the correct CA.`);
+                inputTokenCA = "So11111111111111111111111111111111111111112";
+            }
 
+            if (outputTokenCA === "So11111111111111111111111111111111111111111") {
+                console.warn(`Invalid outputTokenCA detected: ${outputTokenCA}. Replacing with the correct CA.`);
+                outputTokenCA = "So11111111111111111111111111111111111111112";
+}
             console.log(`Preparing to swap ${amountToBuy} of ${inputTokenCA} for ${outputTokenCA}`);
 
             // Adjust the amount based on token decimals
@@ -268,9 +272,9 @@ async function buyRecommendedTokens(recommendations, runtime) {
                           await getTokenDecimals(connection, inputTokenCA)
                       );
 
-            const adjustedAmount = new BigNumber(amountToBuy).multipliedBy(
-                new BigNumber(10).pow(inputTokenDecimals)
-            );
+            const adjustedAmount = new BigNumber(amountToBuy)
+            .multipliedBy(new BigNumber(10).pow(inputTokenDecimals))
+            .integerValue(BigNumber.ROUND_DOWN); // Ensure the amount is an integer
 
             console.log("Adjusted Amount:", adjustedAmount.toString());
 
@@ -342,8 +346,8 @@ async function buyRecommendedTokens(recommendations, runtime) {
     }
 }
 
- */
 
 
 
-export default fetchBirdEyeDataAction;
+
+export default purchaseRecommendedTokensAction;

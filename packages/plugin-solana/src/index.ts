@@ -16,6 +16,7 @@ import { trustEvaluator } from "./evaluators/trust.ts";
 import { tokenProvider, TokenProvider } from "./providers/token.ts";
 import { WalletProvider } from "./providers/wallet.ts";
 import fetchBirdEyeDataAction from "./actions/fetchBirdEyeData.ts";
+import purchaseRecommendedTokensAction from "./actions/purchaseRecommendedTokens.ts";
 
 export { TokenProvider, WalletProvider };
 
@@ -23,13 +24,14 @@ export const solanaPlugin: Plugin = {
     name: "solana",
     description: "Solana Plugin for Eliza",
     actions: [
+       fetchBirdEyeDataAction,
        executeSwap,
         pumpfun,
         fomo,
         transferToken,
         executeSwapForDAO,
         take_order,
-        fetchBirdEyeDataAction
+        purchaseRecommendedTokensAction
     ],
     evaluators: [
 
