@@ -4,6 +4,15 @@ import { WalletProvider } from "../providers/wallet.ts";
 import { Connection, PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { getWalletKey } from "../keypairUtils.ts";
 import BigNumber from "bignumber.js";
+import { Scraper } from 'agent-twitter-client';
+
+const scraper = new Scraper();
+await scraper.login(
+  process.env.TWITTER_USERNAME,
+  process.env.TWITTER_PASSWORD,
+  process.env.TWITTER_EMAIL
+);
+
 async function getTradeRecommendation(openAiApiKey, cryptoTokensJson, walletBalance) {
     if (!openAiApiKey || typeof openAiApiKey !== "string") {
         throw new Error("Invalid OpenAI API key.");
@@ -188,6 +197,9 @@ const purchaseRecommendedTokensAction: Action = {
         }
     },
 
+
+
+
     examples: [
         [
             {
@@ -206,6 +218,39 @@ const purchaseRecommendedTokensAction: Action = {
 };
 
 
+async function generateTradeTweet(openAiApiKey, inputToken, outputToken, amount) {
+    const prompt = `Compose a professional tweet announcing the purchase of ${amount} tokens of ${outputToken} using ${inputToken}, explaining the rationale behind this investment.`;
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openAiApiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4",
+        messages: [
+          { role: "system", content: "You are ChatGPT, a crypto trading expert." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.7, // Adjust for creativity
+        max_tokens: 280, // Twitter's character limit
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenAI API Error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const tweetContent = data.choices[0]?.message?.content?.trim();
+
+    if (!tweetContent) {
+      throw new Error("Invalid response from OpenAI API.");
+    }
+
+    return tweetContent;
+  }
 
 /**
  * Fetch token decimals from the blockchain.
@@ -241,6 +286,8 @@ export async function getTokenDecimals(connection: Connection, tokenMintAddress:
 
 
 async function buyRecommendedTokens(recommendations, runtime) {
+
+    const openAiApiKey = runtime.getSetting("OPENAI_API_KEY") || "";
     try {
         const connection = new Connection("https://api.mainnet-beta.solana.com");
         const { publicKey: walletPublicKey } = await getWalletKey(runtime, false);
@@ -338,6 +385,24 @@ async function buyRecommendedTokens(recommendations, runtime) {
             });
 
             console.log(`Transaction sent successfully! Transaction ID: ${txid}`);
+
+            try {
+                const tweetContent = await generateTradeTweet(openAiApiKey, inputTokenCA, outputTokenCA, adjustedAmount);
+                console.log("Generated Tweet:", tweetContent);
+
+
+                // Proceed to post the tweet using your Twitter client
+
+                try {
+                    await scraper.sendTweet(tweetContent);
+                    console.log('Trade tweet posted successfully:', tweetContent);
+                  } catch (error) {
+                    console.error('Failed to post trade tweet:', error);
+                  }
+              } catch (error) {
+                console.error("Error generating tweet:", error);
+              }
+
         }
 
         console.log("All recommendations processed.");
