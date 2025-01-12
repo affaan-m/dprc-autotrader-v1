@@ -18,6 +18,11 @@ import { WalletProvider, Item } from "./wallet.ts";
 import { Connection } from "@solana/web3.js";
 import { getWalletKey } from "../keypairUtils.ts";
 
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 const PROVIDER_CONFIG = {
     BIRDEYE_API: "https://public-api.birdeye.so",
     MAX_RETRIES: 3,
@@ -97,6 +102,7 @@ export class TokenProvider {
 
         for (let i = 0; i < PROVIDER_CONFIG.MAX_RETRIES; i++) {
             try {
+                await sleep(12000);
                 const response = await fetch(url, {
                     ...options,
                     headers: {
@@ -116,7 +122,7 @@ export class TokenProvider {
 
                 const data = await response.json();
 
-                console.log("Data is: ", data);
+               // console.log("Data is: ", data);
                 return data;
             } catch (error) {
                 console.error(`Attempt ${i + 1} failed:`, error);
@@ -199,6 +205,7 @@ export class TokenProvider {
                 address: this.tokenAddress,
                 networkId: this.NETWORK_ID, // Replace with your network ID
             };
+            await sleep(12000);
 
             const response = await fetch(this.GRAPHQL_ENDPOINT, {
                 method: "POST",
@@ -247,8 +254,8 @@ export class TokenProvider {
             const cacheKey = "prices";
             const cachedData = this.getCachedData<Prices>(cacheKey);
             if (cachedData) {
-                console.log("Returning cached prices.");
-                return cachedData;
+                console.log("Not Returning cached prices.");
+                //return cachedData;
             }
             const { SOL, BTC, ETH } = PROVIDER_CONFIG.TOKEN_ADDRESSES;
             const tokens = [SOL, BTC, ETH];
@@ -259,6 +266,7 @@ export class TokenProvider {
             };
 
             for (const token of tokens) {
+                await sleep(12000);
                 const response = await this.fetchWithRetry(
                     `${PROVIDER_CONFIG.BIRDEYE_API}/defi/price?address=${token}`,
                     {
@@ -347,9 +355,10 @@ export class TokenProvider {
             console.log(
                 `Not Returning cached token security data for ${this.tokenAddress}.`
             );
-           // return cachedData;
+            //return cachedData;
         }
         const url = `${PROVIDER_CONFIG.BIRDEYE_API}${PROVIDER_CONFIG.TOKEN_SECURITY_ENDPOINT}${this.tokenAddress}`;
+        await sleep(12000);
         const data = await this.fetchWithRetry(url);
 
         if (!data?.success || !data?.data) {
@@ -397,7 +406,7 @@ export class TokenProvider {
             throw new Error("No token trade data available");
         }
 
-        console.log("Data is : ", data);
+        //console.log("Data is : ", data);
 
         const tradeData: TokenTradeData = {
             address: data.data.address,
@@ -604,7 +613,7 @@ export class TokenProvider {
                 data.data.volume_sell_24h_change_percent,
         };
         this.setCachedData(cacheKey, tradeData);
-        console.log("Trade Data:", tradeData);
+        //console.log("Trade Data:", tradeData);
 
         return tradeData;
     }
@@ -771,7 +780,7 @@ export class TokenProvider {
         let cursor;
         //HELIOUS_API_KEY needs to be added
         const url = `https://mainnet.helius-rpc.com/?api-key=${settings.HELIUS_API_KEY || ""}`;
-        console.log({ url });
+        //console.log({ url });
 
         try {
             while (true) {
@@ -788,6 +797,7 @@ export class TokenProvider {
                 if (page > 2) {
                     break;
                 }
+                await sleep(12000);
                 const response = await fetch(url, {
                     method: "POST",
                     headers: {
@@ -1105,7 +1115,7 @@ export class TokenProvider {
         }
         output += `\n`;
 
-        console.log("Formatted token data:", output);
+        //console.log("Formatted token data:", output);
         return output;
     }
 

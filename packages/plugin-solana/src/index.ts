@@ -17,9 +17,7 @@ import { tokenProvider, TokenProvider } from "./providers/token.ts";
 import { WalletProvider } from "./providers/wallet.ts";
 import fetchBirdEyeDataAction from "./actions/fetchBirdEyeData.ts";
 import purchaseRecommendedTokensAction from "./actions/purchaseRecommendedTokens.ts";
-import helloWorldAction from "./actions/tradingStartAction.ts";
 import { tradingStartProvider } from "./providers/tradingStartProvider.ts";
-import WorldAction from "./actions/mainTradingActions.ts";
 import mainTradingActions from "./actions/mainTradingActions.ts";
 import tradingStartAction from "./actions/tradingStartAction.ts";
 
@@ -42,12 +40,12 @@ export const solanaPlugin: Plugin = {
     ],
     evaluators: [
 
-       trustEvaluator
+       //trustEvaluator
 
     ],
     providers: [
        walletProvider,
-        trustScoreProvider,
+        //trustScoreProvider,
        tokenProvider,
        tradingStartProvider
         ]

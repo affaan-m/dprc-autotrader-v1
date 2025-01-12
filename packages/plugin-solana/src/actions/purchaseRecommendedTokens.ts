@@ -6,12 +6,39 @@ import { getWalletKey } from "../keypairUtils.ts";
 import BigNumber from "bignumber.js";
 import { Scraper } from 'agent-twitter-client';
 
-const scraper = new Scraper();
-await scraper.login(
-  process.env.TWITTER_USERNAME,
-  process.env.TWITTER_PASSWORD,
-  process.env.TWITTER_EMAIL
-);
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Singleton instance for the Scraper
+let scraperInstance = null;
+let isLoggedIn = false;
+
+async function getScraper() {
+    if (!scraperInstance) {
+        scraperInstance = new Scraper();
+    }
+
+    if (!isLoggedIn) {
+        try {
+            console.log("Logging in...");
+            await scraperInstance.login(
+                process.env.TWITTER_USERNAME,
+                process.env.TWITTER_PASSWORD,
+                process.env.TWITTER_EMAIL
+            );
+            isLoggedIn = true;
+            console.log("Logged in successfully.");
+        } catch (error) {
+            console.error("Login failed:", error);
+            throw error;
+        }
+    }
+
+    return scraperInstance;
+}
+
+
 
 async function getTradeRecommendation(openAiApiKey, cryptoTokensJson, walletBalance) {
     if (!openAiApiKey || typeof openAiApiKey !== "string") {
@@ -60,6 +87,8 @@ Do not include explanations or comments. If no tokens are worth trading, return:
 }
 `;
 
+
+    await sleep(15000);
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -133,7 +162,7 @@ const purchaseRecommendedTokensAction: Action = {
                     "x-chain": "solana",
                 },
             };
-
+            await sleep(15000);
             const response = await fetch(endpoint, options);
             if (!response.ok) {
                 throw new Error(`API call failed with status: ${response.status}`);
@@ -169,6 +198,7 @@ const purchaseRecommendedTokensAction: Action = {
                 return acc;
             }, {});
 
+            await sleep(15000);
             const recommendation = await getTradeRecommendation(
                 openAiApiKey,
                 tradableTokens,
@@ -185,6 +215,7 @@ const purchaseRecommendedTokensAction: Action = {
             console.log("Trade Recommendations:", recommendationsResponse);
 
             // Step 3: Pass Recommendations to buyRecommendedTokens
+            await sleep(15000);
             await buyRecommendedTokens(recommendationsResponse, runtime);
 
             console.log("Trade execution completed.");
@@ -220,6 +251,7 @@ const purchaseRecommendedTokensAction: Action = {
 
 async function generateTradeTweet(openAiApiKey, inputToken, outputToken, amount) {
     const prompt = `Compose a professional tweet announcing the purchase of ${amount} tokens of ${outputToken} using ${inputToken}, explaining the rationale behind this investment.`;
+    await sleep(15000);
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -324,7 +356,7 @@ async function buyRecommendedTokens(recommendations, runtime) {
             .integerValue(BigNumber.ROUND_DOWN); // Ensure the amount is an integer
 
             console.log("Adjusted Amount:", adjustedAmount.toString());
-
+            await sleep(5000);
             const quoteResponse = await fetch(
                 `https://quote-api.jup.ag/v6/quote?inputMint=${inputTokenCA}&outputMint=${outputTokenCA}&amount=${adjustedAmount}&slippageBps=50`
             );
@@ -345,7 +377,7 @@ async function buyRecommendedTokens(recommendations, runtime) {
                 computeUnitPriceMicroLamports: 2000000,
                 dynamicComputeUnitLimit: true,
             };
-
+            await sleep(5000);
             const swapResponse = await fetch("https://quote-api.jup.ag/v6/swap", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -390,15 +422,19 @@ async function buyRecommendedTokens(recommendations, runtime) {
                 const tweetContent = await generateTradeTweet(openAiApiKey, inputTokenCA, outputTokenCA, adjustedAmount);
                 console.log("Generated Tweet:", tweetContent);
 
-
                 // Proceed to post the tweet using your Twitter client
 
-                try {
-                    await scraper.sendTweet(tweetContent);
-                    console.log('Trade tweet posted successfully:', tweetContent);
-                  } catch (error) {
-                    console.error('Failed to post trade tweet:', error);
-                  }
+                (async () => {
+                    try {
+                        const scraper = await getScraper();
+                        await sleep(15000);
+                        await scraper.sendTweet(tweetContent);
+                        console.log("Tweet posted successfully:", tweetContent);
+                    } catch (error) {
+                        console.error('Failed to post trade tweet:', error);
+                    }
+                })();
+
               } catch (error) {
                 console.error("Error generating tweet:", error);
               }

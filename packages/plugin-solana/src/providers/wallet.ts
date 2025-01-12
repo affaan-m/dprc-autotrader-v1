@@ -4,11 +4,15 @@ import BigNumber from "bignumber.js";
 import NodeCache from "node-cache";
 import { getWalletKey } from "../keypairUtils";
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // Provider configuration
 const PROVIDER_CONFIG = {
     BIRDEYE_API: "https://public-api.birdeye.so",
     MAX_RETRIES: 1,
-    RETRY_DELAY: 5000,
+    RETRY_DELAY: 12000,
     DEFAULT_RPC: "https://api.mainnet-beta.solana.com",
     GRAPHQL_ENDPOINT: "https://graph.codex.io/graphql",
     TOKEN_ADDRESSES: {
@@ -70,6 +74,7 @@ export class WalletProvider {
 
         for (let i = 0; i < PROVIDER_CONFIG.MAX_RETRIES; i++) {
             try {
+                await sleep(12000);
                 const response = await fetch(url, {
                     ...options,
                     headers: {
@@ -194,7 +199,7 @@ export class WalletProvider {
                 walletId: `${this.walletPublicKey.toBase58()}:${1399811149}`,
                 cursor: null,
             };
-
+            await sleep(12000);
             const response = await fetch(PROVIDER_CONFIG.GRAPHQL_ENDPOINT, {
                 method: "POST",
                 headers: {
@@ -282,6 +287,7 @@ export class WalletProvider {
             };
 
             for (const token of tokens) {
+                await sleep(12000);
                 const response = await this.fetchWithRetry(
                     runtime,
                     `${PROVIDER_CONFIG.BIRDEYE_API}/defi/price?address=${token}`,

@@ -1,7 +1,9 @@
 import { Action, IAgentRuntime, Memory } from "@elizaos/core";
 import tradingStartAction from "./tradingStartAction";
 import purchaseRecommendedTokensAction from "./purchaseRecommendedTokens";
-
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 const mainTradingActions: Action = {
     name: "MAIN_TRADING_ACTIONS",
     similes: ["TRADING_ACTIONS", "MAIN_TRADE_ACTIONS"],
@@ -13,46 +15,63 @@ const mainTradingActions: Action = {
     handler: async (runtime: IAgentRuntime, message: Memory) => {
         console.log("Modern Stoic AI Agent Started the Trading")
 
-        function autonomousDailyTrades() {
+
+        // Schedule tasks for today
+        autonomousDailyTrades();
+
+        async function autonomousDailyTrades() {
+
             const now = new Date();
             const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-            // Generate three random times within the day
+            // Generate three random future times
             const randomTimes = [];
             for (let i = 0; i < 3; i++) {
-                const randomTime = new Date(startOfDay.getTime() + Math.random() * (endOfDay.getTime() - startOfDay.getTime()));
+                let randomTime;
+                do {
+                    randomTime = new Date(startOfDay.getTime() + Math.random() * (endOfDay.getTime() - startOfDay.getTime()));
+                } while (randomTime <= now); // Ensure only future times
                 randomTimes.push(randomTime);
             }
 
-            // Sort the times to ensure they are in chronological order
+            // Sort the times
             randomTimes.sort((a, b) => a - b);
 
-            // Schedule the tasks
-            randomTimes.forEach((time, index) => {
+
+            try {
+                console.log('Attempting to purchase tokens...');
+                await sleep(10000);
+                await purchaseRecommendedTokensAction.handler(runtime, message);
+                console.log('Purchase successful!');
+                await sleep(10000);
+            } catch (error) {
+                console.error(`Error in Purchase Recommended tokens:`, error);
+            }
+
+
+            // Commenting this logic of scheduling now. Will use later if required
+
+         /*   randomTimes.forEach((time, index) => {
                 const delay = time.getTime() - now.getTime();
                 if (delay > 0) {
+                    console.log(`Task ${index + 1} scheduled with delay ${delay} ms`);
                     setTimeout(async () => {
-                        console.log(`Task ${index + 1} executed at ${new Date().toLocaleTimeString()}`);
-                        // Purchase the recommended tokens
+                        console.log(`Task ${index + 1} executing at ${new Date().toLocaleTimeString()}`);
                         try {
-                            // Attempt to purchase the recommended tokens
-                            const result = await purchaseRecommendedTokensAction.handler(runtime, message);
-                            // Handle the result as needed
-                            console.log('Purchase successful:', result);
+                            console.log('Attempting to purchase tokens...');
+                            await purchaseRecommendedTokensAction.handler(runtime, message);
+                            console.log('Purchase successful!');
                         } catch (error) {
-                            // Handle any errors that occur during the purchase
-                            console.error('An error occurred during the purchase:', error);
-                            // Additional error handling logic can be added here
+                            console.error(`Error in Task ${index + 1}:`, error);
                         }
-
                     }, delay);
+                } else {
+                    console.warn(`Task ${index + 1} skipped due to non-positive delay.`);
                 }
             });
         }
 
-        // Schedule tasks for today
-        autonomousDailyTrades();
 
         // Reschedule tasks at midnight for the next day
         const now = new Date();
@@ -64,6 +83,9 @@ const mainTradingActions: Action = {
             setInterval(autonomousDailyTrades, 24 * 60 * 60 * 1000); // Repeat every 24 hours
         }, timeUntilMidnight);
 
+ */
+
+        }
 
         return true;
     },
