@@ -6,37 +6,48 @@ import { getWalletKey } from "../keypairUtils.ts";
 import BigNumber from "bignumber.js";
 import { Scraper } from 'agent-twitter-client';
 
+
+const initializeScraper = async (): Promise<Scraper> => {
+    const scraper = new Scraper();
+
+    try {
+      // Verify login status directly
+      const isLoggedIn = await scraper.isLoggedIn();
+
+      if (!isLoggedIn) {
+        console.log('Not logged in. Attempting login...');
+
+        // Perform login with credentials
+        const username = process.env.TWITTER_USERNAME || '';
+        const password = process.env.TWITTER_PASSWORD || '';
+        const email = process.env.TWITTER_EMAIL || '';
+
+        if (!username || !password) {
+          throw new Error('Missing username or password in environment variables.');
+        }
+
+        await scraper.login(username, password, email);
+        console.log('Login successful!');
+      } else {
+        console.log('Already logged in.');
+      }
+    } catch (error) {
+      console.error('Error during scraper initialization:', error);
+      throw error;
+    }
+
+    return scraper;
+  };
+
+
+  let lastTweetContent: string | null = null;
+
+
+
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Singleton instance for the Scraper
-let scraperInstance = null;
-let isLoggedIn = false;
-
-async function getScraper() {
-    if (!scraperInstance) {
-        scraperInstance = new Scraper();
-    }
-
-    if (!isLoggedIn) {
-        try {
-            console.log("Logging in...");
-            await scraperInstance.login(
-                process.env.TWITTER_USERNAME,
-                process.env.TWITTER_PASSWORD,
-                process.env.TWITTER_EMAIL
-            );
-            isLoggedIn = true;
-            console.log("Logged in successfully.");
-        } catch (error) {
-            console.error("Login failed:", error);
-            throw error;
-        }
-    }
-
-    return scraperInstance;
-}
 
 
 
@@ -59,7 +70,7 @@ async function getTradeRecommendation(openAiApiKey, cryptoTokensJson, walletBala
 
     const prompt = `
 You are a seasoned crypto trading expert. Focus only on providing token trading recommendations in valid JSON format.
-Consider only 5% amount of balanace as as tradable.  Based on the following available tokens for trading, my current wallet balance, and tradable wallet tokens, please recommend:
+Consider only 30% amount of walllet balanace as as tradable.  Based on the following available tokens for trading, my current wallet balance, and tradable wallet tokens, please recommend:
 1. Which tokens I should trade.
 2. How much amount of each token I should purchase to maximize profit.
 3. Provide the accurate contract address (CA) for both input and output tokens in your recommendations.
@@ -191,12 +202,22 @@ const purchaseRecommendedTokensAction: Action = {
                 results.push({ token: token.name, shouldTrade });
             }
             console.log("Current Wallet Portfolio:", JSON.stringify(birdEyeWalletPortfolio, null, 2));
+
             console.log("Results:", results);
 
             const tradableTokens = results.reduce((acc, cur) => {
                 acc[cur.token.toLowerCase()] = cur.shouldTrade;
                 return acc;
             }, {});
+
+            const totalUsd = birdEyeWalletPortfolio.data.totalUsd;
+            console.log("Total USD Amount:", totalUsd);
+
+            // Check if totalUsd is less than 20 and skip trade recommendations if true
+            if (totalUsd < 20) {
+                console.log("Total USD amount is less than $20 in your wallet. Skipping trade recommendations.");
+                return;
+            }
 
             await sleep(15000);
             const recommendation = await getTradeRecommendation(
@@ -250,7 +271,7 @@ const purchaseRecommendedTokensAction: Action = {
 
 
 async function generateTradeTweet(openAiApiKey, inputToken, outputToken, amount) {
-    const prompt = `Compose a professional tweet announcing the purchase of ${amount} tokens of ${outputToken} using ${inputToken}, explaining the rationale behind this investment.`;
+    const prompt = `Generate a professional tweet as a trading expert announcing the purchase of ${amount} tokens of ${outputToken} using ${inputToken}, explaining the rationale behind this investment. Also use the actual name of tokens instead of token's Contract Address in your response. If you don't know the token name, you can use the actual contract address. Make it in less than 280 characters.`;
     await sleep(15000);
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -265,7 +286,7 @@ async function generateTradeTweet(openAiApiKey, inputToken, outputToken, amount)
           { role: "system", content: "You are ChatGPT, a crypto trading expert." },
           { role: "user", content: prompt },
         ],
-        temperature: 0.7, // Adjust for creativity
+        temperature: 0.6, // Adjust for creativity
         max_tokens: 280, // Twitter's character limit
       }),
     });
@@ -351,9 +372,21 @@ async function buyRecommendedTokens(recommendations, runtime) {
                           await getTokenDecimals(connection, inputTokenCA)
                       );
 
-            const adjustedAmount = new BigNumber(amountToBuy)
+            let adjustedAmount = new BigNumber(amountToBuy)
             .multipliedBy(new BigNumber(10).pow(inputTokenDecimals))
             .integerValue(BigNumber.ROUND_DOWN); // Ensure the amount is an integer
+
+            // Check if the number has more than 7 digits
+            if (adjustedAmount.toString().length > 7) {
+                // Scale down to 7 digits
+                const scalingFactor = new BigNumber(10).pow(adjustedAmount.toString().length - 7);
+                const scaledAmount = adjustedAmount.dividedBy(scalingFactor).integerValue(BigNumber.ROUND_DOWN);
+                console.log("Scaled Adjusted Amount: ", scaledAmount.toString());
+                adjustedAmount=scaledAmount;
+            } else {
+                console.log("Adjusted Amount (already adjusted):", adjustedAmount.toString());
+            }
+
 
             console.log("Adjusted Amount:", adjustedAmount.toString());
             await sleep(5000);
@@ -418,26 +451,39 @@ async function buyRecommendedTokens(recommendations, runtime) {
 
             console.log(`Transaction sent successfully! Transaction ID: ${txid}`);
 
-            try {
-                const tweetContent = await generateTradeTweet(openAiApiKey, inputTokenCA, outputTokenCA, adjustedAmount);
-                console.log("Generated Tweet:", tweetContent);
+            const postTweet = async (tweetContent: string): Promise<void> => {
+                try {
+                  // Check if the new tweet content matches the last tweet
+                  if (lastTweetContent === tweetContent) {
+                    console.log("Tweet content is the same as the last tweet. Skipping...");
+                    return;
+                  }
 
-                // Proceed to post the tweet using your Twitter client
+                  const scraper = await initializeScraper();
+                  await sleep(15000);
 
-                (async () => {
-                    try {
-                        const scraper = await getScraper();
-                        await sleep(15000);
-                        await scraper.sendTweet(tweetContent);
-                        console.log("Tweet posted successfully:", tweetContent);
-                    } catch (error) {
-                        console.error('Failed to post trade tweet:', error);
-                    }
-                })();
+                  // Post the tweet
+                  await scraper.sendTweet(tweetContent);
+                  console.log("Tweet posted successfully:", tweetContent);
 
-              } catch (error) {
-                console.error("Error generating tweet:", error);
-              }
+                  // Update the lastTweetContent
+                  lastTweetContent = tweetContent;
+                } catch (error) {
+                  console.error("Failed to post trade tweet:", error);
+                }
+              };
+
+
+                try {
+                    const tweetContent = await generateTradeTweet(openAiApiKey, inputTokenCA, outputTokenCA, adjustedAmount);
+                    console.log("Generated Tweet:", tweetContent);
+
+                    // Post the tweet
+                    await postTweet(tweetContent);
+                } catch (error) {
+                    console.error("Error generating tweet:", error);
+                }
+
 
         }
 

@@ -34,9 +34,9 @@ export const solanaPlugin: Plugin = {
 //        transferToken,
 //        executeSwapForDAO,
 //        take_order,
-         purchaseRecommendedTokensAction,
-         tradingStartAction,
-         mainTradingActions
+        purchaseRecommendedTokensAction,
+        tradingStartAction,
+        mainTradingActions
     ],
     evaluators: [
 

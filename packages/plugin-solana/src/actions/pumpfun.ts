@@ -4,6 +4,36 @@ import { generateImage } from "@elizaos/core";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { CreateTokenMetadata, PriorityFee, PumpFunSDK } from "pumpdotfun-sdk";
 
+class CustomPumpFunSDK extends PumpFunSDK {
+    async createTokenMetadata(create) {
+        console.log("Custom Debug: Token Metadata Input", create);
+
+        const formData = new FormData();
+        formData.append("file", create.file, "image.png");
+        formData.append("name", create.name);
+        formData.append("symbol", create.symbol);
+        formData.append("description", create.description);
+
+        try {
+            const response = await fetch("https://pump.fun/api/ipfs", {
+                method: "POST",
+                headers: { Accept: "application/json" },
+                body: formData,
+            });
+            console.log("Custom Debug: Pure Raw Response from API:", response);
+
+            const rawResponse = await response.text();
+            console.log("Custom Debug: Raw Response from API:", rawResponse);
+
+            return JSON.parse(rawResponse);
+        } catch (error) {
+            console.error("Custom Debug: Error in createTokenMetadata:", error);
+            throw error;
+        }
+    }
+}
+
+
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import {
     settings,
@@ -20,6 +50,12 @@ import {
 } from "@elizaos/core";
 
 import { walletProvider } from "../providers/wallet.ts";
+
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 
 export interface CreateAndBuyContent extends Content {
     tokenMetadata: {
@@ -75,60 +111,99 @@ export const createAndBuyToken = async ({
         | "singleGossip"
         | "root"
         | "max";
-    sdk: PumpFunSDK;
+    sdk: CustomPumpFunSDK;
     connection: Connection;
     slippage: string;
 }) => {
-    const createResults = await sdk.createAndBuy(
-        deployer,
-        mint,
-        tokenMetadata,
-        buyAmountSol,
-        BigInt(slippage),
-        priorityFee,
-        commitment
-    );
+    try {
+        console.log("Starting the createAndBuyToken process...");
 
-    console.log("Create Results: ", createResults);
+        // Debugging: Log the input parameters
+        console.log("Input Parameters:");
+        console.log("Deployer Public Key:", deployer.publicKey.toBase58());
+        console.log("Mint Public Key:", mint.publicKey.toBase58());
+        console.log("Token Metadata:", tokenMetadata);
+        console.log("Buy Amount (SOL):", buyAmountSol.toString());
+        console.log("Priority Fee:", priorityFee);
+        console.log("Allow Off Curve:", allowOffCurve);
+        console.log("Commitment:", commitment);
+        console.log("Slippage:", slippage);
 
-    if (createResults.success) {
-        console.log(
-            "Success:",
-            `https://pump.fun/${mint.publicKey.toBase58()}`
+        // Step 1: Call sdk.createAndBuy
+        console.log("Calling sdk.createAndBuy...");
+        const createResults = await sdk.createAndBuy(
+            deployer,
+            mint,
+            tokenMetadata,
+            buyAmountSol,
+            BigInt(slippage),
+            priorityFee,
+            commitment
         );
-        const ata = getAssociatedTokenAddressSync(
-            mint.publicKey,
-            deployer.publicKey,
-            allowOffCurve
-        );
-        const balance = await connection.getTokenAccountBalance(
-            ata,
-            "processed"
-        );
-        const amount = balance.value.uiAmount;
-        if (amount === null) {
+        console.log("Create and Buy Results:", createResults);
+
+        if (createResults.success) {
+            console.log("Token creation and purchase successful!");
+
+            // Debugging: Log the mint URL
             console.log(
-                `${deployer.publicKey.toBase58()}:`,
-                "No Account Found"
+                "Token URL:",
+                `https://pump.fun/${mint.publicKey.toBase58()}`
             );
-        } else {
-            console.log(`${deployer.publicKey.toBase58()}:`, amount);
-        }
 
-        return {
-            success: true,
-            ca: mint.publicKey.toBase58(),
-            creator: deployer.publicKey.toBase58(),
-        };
-    } else {
-        console.log("Create and Buy failed");
+            // Step 2: Get the associated token account (ATA)
+            console.log("Calculating the Associated Token Account (ATA)...");
+            const ata = getAssociatedTokenAddressSync(
+                mint.publicKey,
+                deployer.publicKey,
+                allowOffCurve
+            );
+            console.log("Associated Token Account (ATA):", ata.toBase58());
+
+            // Step 3: Check the token balance
+            console.log("Fetching token account balance...");
+            const balance = await connection.getTokenAccountBalance(
+                ata,
+                "processed"
+            );
+            console.log("Token Account Balance:", balance);
+
+            const amount = balance.value.uiAmount;
+            if (amount === null) {
+                console.log(
+                    `${deployer.publicKey.toBase58()}:`,
+                    "No Account Found"
+                );
+            } else {
+                console.log(`${deployer.publicKey.toBase58()}:`, amount);
+            }
+
+            // Return success response
+            console.log("Returning success response...");
+            return {
+                success: true,
+                ca: mint.publicKey.toBase58(),
+                creator: deployer.publicKey.toBase58(),
+            };
+        } else {
+            // Handle failure
+            console.error("Create and Buy failed:", createResults.error);
+            return {
+                success: false,
+                ca: mint.publicKey.toBase58(),
+                error: createResults.error || "Transaction failed",
+            };
+        }
+    } catch (error) {
+        // Catch any unexpected errors
+        console.error("Unexpected error during createAndBuyToken process:", error);
         return {
             success: false,
-            ca: mint.publicKey.toBase58(),
-            error: createResults.error || "Transaction failed",
+            error: error.message || "Unexpected error occurred",
         };
     }
 };
+
 
 export const buyToken = async ({
     sdk,
@@ -292,21 +367,35 @@ export default {
             state = await runtime.updateRecentMessageState(state);
         }
 
+        //console.log("State :", state);
+        //await sleep(5000);
+
         // Get wallet info for context
         const walletInfo = await walletProvider.get(runtime, message, state);
+
+        //console.log("WalletInfo :");
+        //console.log(walletInfo)
+
         state.walletInfo = walletInfo;
+
+        //console.log("State dot WalletInfo :");
+        //console.log(state.walletInfo)
 
         // Generate structured content from natural language
         const pumpContext = composeContext({
             state,
             template: pumpfunTemplate,
         });
+        //console.log("Pumpfun Context :", pumpContext);
 
         const content = await generateObjectDeprecated({
             runtime,
             context: pumpContext,
             modelClass: ModelClass.LARGE,
         });
+
+        //console.log("Content :", content);
+
 
         // Validate the generated content
         if (!isCreateAndBuyContent(runtime, content)) {
@@ -409,7 +498,7 @@ export default {
             const provider = new AnchorProvider(connection, wallet, {
                 commitment: "finalized",
             });
-            const sdk = new PumpFunSDK(provider);
+            const sdk = new CustomPumpFunSDK(provider);
             // const slippage = runtime.getSetting("SLIPPAGE");
 
             const createAndBuyConfirmation = await promptConfirmation();
@@ -433,6 +522,9 @@ export default {
                 connection,
                 slippage,
             });
+
+            console.log("Result: ");
+            console.log(result);
 
             if (callback) {
                 if (result.success) {
